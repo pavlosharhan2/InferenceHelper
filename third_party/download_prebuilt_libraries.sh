@@ -82,7 +82,7 @@ mv qairt ../../ViewAndroid
 download_and_extract https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-android-sdk.zip
 mv OpenCV-android-sdk ../../ViewAndroid
 #custom build gradle so Opencv can be used in both Java and C++
-mv -f ../opencv_android_gradle/build.gradle ../../ViewAndroid/OpenCV-android-sdk/sdk/
+cp -f ../opencv_android_gradle/build.gradle ../../ViewAndroid/OpenCV-android-sdk/sdk/
 
 ########################################################################
 
