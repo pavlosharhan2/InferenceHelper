@@ -85,124 +85,179 @@ int32_t InferenceHelperTensorflowLite::SetCustomOps(const std::vector<std::pair<
     return kRetOk;
 }
 
-int32_t InferenceHelperTensorflowLite::Initialize(const std::string& model_filename, std::vector<InputTensorInfo>& input_tensor_info_list, std::vector<OutputTensorInfo>& output_tensor_info_list)
+int32_t InferenceHelperTensorflowLite::Initialize(
+    const std::string& model_filename,
+    std::vector<InputTensorInfo>& input_tensor_info_list,
+    std::vector<OutputTensorInfo>& output_tensor_info_list)
 {
     /*** Create network ***/
 #if 0
-    model_ = tflite::FlatBufferModel::BuildFromFile(model_filename.c_str());
+    // Optionally build directly from file:
+    // model_ = tflite::FlatBufferModel::BuildFromFile(model_filename.c_str());
 #else
+    // Or load into a buffer first:
     std::ifstream ifs(model_filename, std::ios::binary);
-    if (ifs) {
-        ifs >> std::noskipws;
-        (void)std::copy(std::istream_iterator<char>(ifs), std::istream_iterator<char>(), back_inserter(model_buffer_));
-    } else {
+    if (!ifs) {
         PRINT_E("Failed to read model (%s)\n", model_filename.c_str());
         return kRetErr;
     }
+    ifs >> std::noskipws;
+    model_buffer_.insert(model_buffer_.end(),
+                         std::istream_iterator<char>(ifs),
+                         std::istream_iterator<char>());
     ifs.close();
-    model_ = tflite::FlatBufferModel::BuildFromBuffer(model_buffer_.data(), model_buffer_.size());
+    model_ = tflite::FlatBufferModel::BuildFromBuffer(model_buffer_.data(),
+                                                      model_buffer_.size());
 #endif
 
-    if (model_ == nullptr) {
+    if (!model_) {
         PRINT_E("Failed to build model (%s)\n", model_filename.c_str());
         return kRetErr;
     }
 
     tflite::InterpreterBuilder builder(*model_, *resolver_);
     builder(&interpreter_);
-    if (interpreter_ == nullptr) {
+    if (!interpreter_) {
         PRINT_E("Failed to build interpreter (%s)\n", model_filename.c_str());
         return kRetErr;
     }
 
+    // Set number of CPU threads
     interpreter_->SetNumThreads(num_threads_);
-
 
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN
     if (helper_type_ == kTensorflowLiteQnn) {
-        PRINT("[INFO] Using QNN delegate\n");
+        // 1) Attempt QNN
+        PRINT("[INFO] Attempting QNN delegate\n");
         TfLiteQnnDelegateOptions qnn_opts = TfLiteQnnDelegateOptionsDefault();
-        qnn_opts.skel_library_dir = gQnnSkelLibraryDir.c_str(); // path to Skel .so
+        qnn_opts.skel_library_dir = gQnnSkelLibraryDir.c_str();
         qnn_opts.log_level        = kLogLevelWarn;
         qnn_opts.backend_type     = kHtpBackend;
         qnn_opts.htp_options.performance_mode = kHtpBurst;
         qnn_opts.htp_options.precision        = kHtpFp16;
 
         delegate_ = TfLiteQnnDelegateCreate(&qnn_opts);
+        bool qnn_ok = true;
         if (!delegate_) {
             PRINT_E("[ERROR] QNN delegate creation failed\n");
-            return kRetErr;
-        }
-        if (interpreter_->ModifyGraphWithDelegate(delegate_) != kTfLiteOk) {
+            qnn_ok = false;
+        } else if (interpreter_->ModifyGraphWithDelegate(delegate_) != kTfLiteOk) {
             PRINT_E("[ERROR] QNN ModifyGraphWithDelegate failed\n");
             TfLiteQnnDelegateDelete(delegate_);
             delegate_ = nullptr;
-            return kRetErr;
+            qnn_ok = false;
+        }
+
+        // 2) If QNN failed, fallback to GPU
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU
+        if (!qnn_ok) {
+            PRINT("[INFO] Fallback to GPU delegate\n");
+            // attempt to create GPU delegate
+            auto gpu_options = TfLiteGpuDelegateOptionsV2Default();
+            gpu_options.inference_preference  = TFLITE_GPU_INFERENCE_PREFERENCE_SUSTAINED_SPEED;
+            gpu_options.inference_priority1   = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
+            delegate_ = TfLiteGpuDelegateV2Create(&gpu_options);
+
+            if (!delegate_) {
+                PRINT_E("[WARNING] GPU delegate creation failed - fallback to CPU\n");
+                // CPU only => delegate_ = nullptr, do not set helper_type_
+            } else {
+                // Try ModifyGraphWithDelegate for GPU
+                if (interpreter_->ModifyGraphWithDelegate(delegate_) != kTfLiteOk) {
+                    PRINT_E("[WARNING] GPU ModifyGraphWithDelegate failed - fallback to CPU\n");
+                    TfLiteGpuDelegateV2Delete(delegate_);
+                    delegate_ = nullptr;
+                } else {
+                    PRINT("[INFO] GPU fallback succeeded\n");
+                    // We succeeded in using GPU, so override helper_type_ for finalization
+                    helper_type_ = kTensorflowLiteGpu;
+                }
+            }
+        }
+#else
+        // GPU not compiled => fallback is CPU
+        if (!qnn_ok) {
+            PRINT_E("[WARNING] QNN failed and GPU not available => CPU only\n");
+        }
+#endif  // GPU fallback
+    }
+#endif  // QNN
+
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
+    // If user specifically wants XNNPACK
+    if (helper_type_ == kTensorflowLiteXnnpack) {
+        PRINT("[INFO] Using XNNPACK delegate\n");
+        auto xnn_opts = TfLiteXNNPackDelegateOptionsDefault();
+        xnn_opts.num_threads = num_threads_;
+        delegate_ = TfLiteXNNPackDelegateCreate(&xnn_opts);
+        if (delegate_) {
+            interpreter_->ModifyGraphWithDelegate(delegate_);
+        } else {
+            PRINT_E("[WARNING] XNNPACK delegate creation failed - fallback to CPU\n");
         }
     }
-#endif  // INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN
-#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
-    if (helper_type_ == kTensorflowLiteXnnpack) {
-        TfLiteXNNPackDelegateDelete(delegate_);
-    }
 #endif
-#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
-    if (helper_type_ == kTensorflowLiteXnnpack) {
-        auto options = TfLiteXNNPackDelegateOptionsDefault();
-        options.num_threads = num_threads_;
-        delegate_ = TfLiteXNNPackDelegateCreate(&options);
-        interpreter_->ModifyGraphWithDelegate(delegate_);
-    }
-#endif
+
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU
+    // If user specifically wants GPU (and not set to QNN with fallback)
+    // (We only do this if the user called SetHelperType(kTensorflowLiteGpu),
+    //  not if we just fell back from QNN -> GPU above.)
     if (helper_type_ == kTensorflowLiteGpu) {
-        auto options = TfLiteGpuDelegateOptionsV2Default();
-        options.inference_preference = TFLITE_GPU_INFERENCE_PREFERENCE_SUSTAINED_SPEED;
-        options.inference_priority1 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
-        delegate_ = TfLiteGpuDelegateV2Create(&options);
-        interpreter_->ModifyGraphWithDelegate(delegate_);
+        // Make sure we haven't already set up GPU via fallback
+        if (!delegate_) {
+            PRINT("[INFO] Using GPU delegate\n");
+            auto gpu_options = TfLiteGpuDelegateOptionsV2Default();
+            gpu_options.inference_preference  = TFLITE_GPU_INFERENCE_PREFERENCE_SUSTAINED_SPEED;
+            gpu_options.inference_priority1   = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
+            delegate_ = TfLiteGpuDelegateV2Create(&gpu_options);
+            if (delegate_) {
+                interpreter_->ModifyGraphWithDelegate(delegate_);
+            } else {
+                PRINT_E("[WARNING] GPU delegate creation failed - fallback to CPU\n");
+            }
+        }
     }
 #endif
+
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_EDGETPU
+    // If user specifically wants EdgeTPU
     if (helper_type_ == kTensorflowLiteEdgetpu) {
+        PRINT("[INFO] Using EdgeTPU delegate\n");
         size_t num_devices;
-        std::unique_ptr<edgetpu_device, decltype(&edgetpu_free_devices)> devices(edgetpu_list_devices(&num_devices), &edgetpu_free_devices);
+        std::unique_ptr<edgetpu_device, decltype(&edgetpu_free_devices)>
+            devices(edgetpu_list_devices(&num_devices), &edgetpu_free_devices);
         if (num_devices > 0) {
             const auto& device = devices.get()[0];
             delegate_ = edgetpu_create_delegate(device.type, device.path, nullptr, 0);
             if (delegate_) {
                 interpreter_->ModifyGraphWithDelegate(delegate_);
             } else {
-                PRINT_E("[WARNING] Failed to create Edge TPU delegate\n");
+                PRINT_E("[WARNING] Failed to create EdgeTPU delegate - fallback to CPU\n");
             }
         } else {
-            PRINT_E("[WARNING] Edge TPU is not found\n");
+            PRINT_E("[WARNING] EdgeTPU is not found - fallback to CPU\n");
         }
     }
 #endif
+
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_NNAPI
     if (helper_type_ == kTensorflowLiteNnapi) {
+        PRINT("[INFO] Using NNAPI delegate\n");
         interpreter_->SetNumThreads(1);
         tflite::StatefulNnApiDelegate::Options options;
-        //options.execution_preference = tflite::StatefulNnApiDelegate::Options::kSustainedSpeed;
-        //options.disallow_nnapi_cpu = true;
-        //options.allow_fp16 = true;
-        //options.accelerator_name = "qti-default";
-        //options.accelerator_name = "qti-dsp";
-        //options.accelerator_name = "qti-gpu";
-        //options.accelerator_name = "nnapi-reference";
+        // options.accelerator_name = "qti-default"; // e.g.
         delegate_ = new tflite::StatefulNnApiDelegate(options);
         if (delegate_) {
             interpreter_->ModifyGraphWithDelegate(delegate_);
-            //interpreter_->SetAllowFp16PrecisionForFp32(true);
             auto actualOptions = tflite::StatefulNnApiDelegate::GetOptions(delegate_);
-            PRINT("[INFO] NNAPI options.accelerator_name = %s\n", actualOptions.accelerator_name);
+            PRINT("[INFO] NNAPI accelerator_name = %s\n", actualOptions.accelerator_name);
         } else {
-            PRINT_E("[WARNING] Failed to create NNAPI delegate\n");
+            PRINT_E("[WARNING] NNAPI creation failed - fallback to CPU\n");
         }
     }
 #endif
-    /* Memo: If you get error around here in Visual Studio, please make sure you don't use Debug */
+
+    // Allocate Tensors
     if (interpreter_->AllocateTensors() != kTfLiteOk) {
         PRINT_E("Failed to allocate tensors (%s)\n", model_filename.c_str());
         return kRetErr;
@@ -211,23 +266,25 @@ int32_t InferenceHelperTensorflowLite::Initialize(const std::string& model_filen
     /* Get model information */
     DisplayModelInfo(*interpreter_);
 
-    /* Check if input tensor name exists anddims are the same as described in the model. In case dims is unfixed, resize tensor size. Get id and type */
+    /* Check if input tensor name(s) exist, etc. */
     for (auto& input_tensor_info : input_tensor_info_list) {
         if (GetInputTensorInfo(input_tensor_info) != kRetOk) {
-            PRINT_E("Invalid input tensor info (%s)\n", input_tensor_info.name.c_str());
+            PRINT_E("Invalid input tensor info (%s)\n",
+                    input_tensor_info.name.c_str());
             return kRetErr;
         }
     }
     
-    /* Check if output tensor name exists and get info (id, ptr to data, dims, type) */
+    /* Check if output tensor name(s) exist, etc. */
     for (auto& output_tensor_info : output_tensor_info_list) {
         if (GetOutputTensorInfo(output_tensor_info) != kRetOk) {
-            PRINT_E("Invalid output tensor info (%s)\n", output_tensor_info.name.c_str());
+            PRINT_E("Invalid output tensor info (%s)\n",
+                    output_tensor_info.name.c_str());
             return kRetErr;
         }
     }
 
-    /* Convert normalize parameter to speed up */
+    /* Optionally convert user normalize parameters */
     for (auto& input_tensor_info : input_tensor_info_list) {
         ConvertNormalizeParameters(input_tensor_info);
     }
