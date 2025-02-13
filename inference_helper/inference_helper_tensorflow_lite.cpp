@@ -26,6 +26,9 @@ limitations under the License.
 #include <fstream>
 #include <iostream>
 
+#include "QnnGlobals.hpp"
+
+
 /* for Tensorflow Lite */
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_EDGETPU
 #include "edgetpu.h"
