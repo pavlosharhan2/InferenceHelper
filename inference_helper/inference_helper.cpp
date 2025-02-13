@@ -94,6 +94,12 @@ InferenceHelper* InferenceHelper::Create(const InferenceHelper::HelperType helpe
         p = new InferenceHelperTensorflowLite();
         break;
 #endif
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN
+    case kTensorflowLiteQnn:
+        PRINT("Use TensorflowLite QNN Delegate\n");
+        p = new InferenceHelperTensorflowLite();
+        break;
+#endif
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU
     case kTensorflowLiteGpu:
         PRINT("Use TensorflowLite GPU Delegate\n");

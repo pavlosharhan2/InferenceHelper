@@ -32,6 +32,10 @@ limitations under the License.
 #include "edgetpu_c.h"
 #endif
 
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN
+#include "QNN/TFLiteDelegate/QnnTFLiteDelegate.h"
+#endif
+
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU
 #include "tensorflow/lite/delegates/gpu/delegate.h"
 #endif
@@ -216,6 +220,107 @@ int32_t InferenceHelperTensorflowLite::Finalize(void)
         TfLiteGpuDelegateV2Delete(delegate_);
     }
 #endif
+// -----------------------------------------------------------------------
+// Multi-step fallback if user specifically wants kTensorflowLiteQnn:
+// QNN -> GPU -> XNNPACK -> CPU
+// -----------------------------------------------------------------------
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN
+    if (helper_type_ == kTensorflowLiteQnn) {
+        PRINT("[INFO] Attempt QNN -> GPU -> XNNPACK fallback...\n");
+        // 1) Try QNN
+        TfLiteQnnDelegateOptions qnn_opts = TfLiteQnnDelegateOptionsDefault();
+        qnn_opts.skel_library_dir = gQnnSkelLibraryDir.c_str();
+        qnn_opts.log_level = kLogLevelWarn;
+        qnn_opts.backend_type = kHtpBackend;
+        qnn_opts.htp_options.performance_mode = kHtpBurst;
+        qnn_opts.htp_options.precision = kHtpFp16;
+
+        delegate_ = TfLiteQnnDelegateCreate(&qnn_opts);
+        bool qnn_success = false;
+        if (delegate_) {
+            if (interpreter_->ModifyGraphWithDelegate(delegate_) == kTfLiteOk) {
+                PRINT("[INFO] QNN Delegate succeeded.\n");
+                qnn_success = true;
+            } else {
+                PRINT_E("[WARNING] QNN failed; free & fallback to GPU.\n");
+                TfLiteQnnDelegateDelete(delegate_);
+                delegate_ = nullptr;
+            }
+        } else {
+            PRINT_E("[WARNING] Creating QNN delegate failed; fallback to GPU.\n");
+        }
+
+        // 2) If QNN didn't work, try GPU
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU
+        if (!qnn_success) {
+            TfLiteGpuDelegateOptionsV2 gpu_opts = TfLiteGpuDelegateOptionsV2Default();
+            gpu_opts.inference_preference = TFLITE_GPU_INFERENCE_PREFERENCE_SUSTAINED_SPEED;
+            gpu_opts.inference_priority1 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
+
+            delegate_ = TfLiteGpuDelegateV2Create(&gpu_opts);
+            bool gpu_success = false;
+            if (delegate_) {
+                if (interpreter_->ModifyGraphWithDelegate(delegate_) == kTfLiteOk) {
+                    PRINT("[INFO] GPU Delegate succeeded.\n");
+                    gpu_success = true;
+                } else {
+                    PRINT_E("[WARNING] GPU failed; free & fallback to XNN.\n");
+                    TfLiteGpuDelegateV2Delete(delegate_);
+                    delegate_ = nullptr;
+                }
+            } else {
+                PRINT_E("[WARNING] Creating GPU delegate failed; fallback to XNN.\n");
+            }
+
+            // 3) If GPU didn't work, try XNNPACK
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
+            if (!gpu_success) {
+                TfLiteXNNPackDelegateOptions xnn_opts = TfLiteXNNPackDelegateOptionsDefault();
+                xnn_opts.num_threads = num_threads_;
+                delegate_ = TfLiteXNNPackDelegateCreate(&xnn_opts);
+                if (delegate_) {
+                    if (interpreter_->ModifyGraphWithDelegate(delegate_) == kTfLiteOk) {
+                        PRINT("[INFO] XNNPACK Delegate succeeded.\n");
+                    } else {
+                        PRINT_E("[WARNING] XNNPACK failed; free & fallback to CPU.\n");
+                        TfLiteXNNPackDelegateDelete(delegate_);
+                        delegate_ = nullptr;
+                    }
+                } else {
+                    PRINT_E("[WARNING] Creating XNNPACK delegate failed; fallback to CPU.\n");
+                }
+            }
+#else
+            if (!gpu_success) {
+                PRINT_E("[WARNING] XNNPACK not compiled; fallback to CPU.\n");
+            }
+#endif // XNN
+        }
+#else
+        // If GPU is not compiled, skip directly to XNN
+        if (!qnn_success) {
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
+            TfLiteXNNPackDelegateOptions xnn_opts = TfLiteXNNPackDelegateOptionsDefault();
+            xnn_opts.num_threads = num_threads_;
+            delegate_ = TfLiteXNNPackDelegateCreate(&xnn_opts);
+            if (delegate_) {
+                if (interpreter_->ModifyGraphWithDelegate(delegate_) == kTfLiteOk) {
+                    PRINT("[INFO] XNNPACK Delegate succeeded.\n");
+                } else {
+                    PRINT_E("[WARNING] XNNPACK failed; fallback to CPU.\n");
+                    TfLiteXNNPackDelegateDelete(delegate_);
+                    delegate_ = nullptr;
+                }
+            } else {
+                PRINT_E("[WARNING] Creating XNNPACK delegate failed; fallback to CPU.\n");
+            }
+#else
+            PRINT_E("[WARNING] GPU and XNNPACK not compiled in; fallback to CPU.\n");
+#endif // XNN
+        }
+#endif // GPU
+    }
+#endif // QNN
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
     if (helper_type_ == kTensorflowLiteXnnpack) {
         TfLiteXNNPackDelegateDelete(delegate_);
