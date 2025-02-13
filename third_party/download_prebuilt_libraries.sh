@@ -75,6 +75,13 @@ download_and_extract_libtorch_andriod() {
     rm temp.zip
     cd ..
 }
+
+download_and_extract https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v2.31.0.250130.zip
+mv qairt ../../ViewAndroid
+
+download_and_extract https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-android-sdk.zip
+mv OpenCV-android-sdk ../../ViewAndroid
+
 ########################################################################
 
 ### cd to the same directory as this shell file ###
@@ -82,19 +89,6 @@ move_dir_to_shell_file
 
 ### Get other projects (dependencies) ###
 git submodule update --init --recommend-shallow --depth 1
-
-### Download pre-built libraries from https://github.com/iwatake2222/InferenceHelper_Binary ###
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/armnn_prebuilt_linux_1804.tgz"
-# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/armnn_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_linux_1804.tgz"
-# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_windows.zip"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_linux_1804.tgz"
-# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_windows.zip"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/tflite_prebuilt_linux_1804.tgz"
-# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/tflite_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/tflite_prebuilt_windows.zip"
 
 ### Download ncnn pre-built libraries from https://github.com/Tencent/ncnn ###
 mkdir -p ncnn_prebuilt && cd ncnn_prebuilt
