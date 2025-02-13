@@ -93,17 +93,17 @@ move_dir_to_shell_file
 git submodule update --init --recommend-shallow --depth 1
 
 ### Download pre-built libraries from https://github.com/iwatake2222/InferenceHelper_Binary ###
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/armnn_prebuilt_linux_1804.tgz"
+# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/armnn_prebuilt_linux_1804.tgz"
 # download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/armnn_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_linux_1804.tgz"
+# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_linux_1804.tgz"
 # download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_windows.zip"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_linux_1804.tgz"
+# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/edgetpu_prebuilt_windows.zip"
+# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_linux_1804.tgz"
 # download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_windows.zip"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/tflite_prebuilt_linux_1804.tgz"
+# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/mnn_prebuilt_windows.zip"
+download_and_extract "https://github.com/pavloshargan/InferenceHelper/releases/download/v1.0/tflite_prebuilt.zip"
 # download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/tflite_prebuilt_linux_2004.tgz"
-download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/tflite_prebuilt_windows.zip"
+# download_and_extract "https://github.com/iwatake2222/InferenceHelper_Binary/releases/download/v20220210/tflite_prebuilt_windows.zip"
 
 ### Download ncnn pre-built libraries from https://github.com/Tencent/ncnn ###
 mkdir -p ncnn_prebuilt && cd ncnn_prebuilt
