@@ -227,6 +227,7 @@ public:
         kOpencvGpu,
         kTensorflowLite,
         kTensorflowLiteXnnpack,
+        kTensorflowLiteQnn,
         kTensorflowLiteGpu,
         kTensorflowLiteEdgetpu,
         kTensorflowLiteNnapi,

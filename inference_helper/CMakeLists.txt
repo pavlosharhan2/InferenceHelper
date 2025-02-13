@@ -8,6 +8,7 @@ set(INFERENCE_HELPER_ENABLE_OPENCV off CACHE BOOL "With OpenCV? [on/off]")
 set(INFERENCE_HELPER_ENABLE_TFLITE off CACHE BOOL "With Tflite? [on/off]")
 set(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK off CACHE BOOL "With Tflite Delegate XNNPACK? [on/off]")
 set(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU off CACHE BOOL "With Tflite Delegate GPU? [on/off]")
+set(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN off CACHE BOOL "With Tflite Delegate QNN? [on/off]")
 set(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_EDGETPU off CACHE BOOL "With Tflite Delegate EdgeTPU? [on/off]")
 set(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_NNAPI off CACHE BOOL "With Tflite Delegate NNAPI? [on/off]")
 set(INFERENCE_HELPER_ENABLE_TENSORRT off CACHE BOOL "With TensorRT? [on/off]")
@@ -32,7 +33,7 @@ if(INFERENCE_HELPER_ENABLE_OPENCV)
     set(SRC ${SRC} inference_helper_opencv.h inference_helper_opencv.cpp)
 endif()
 
-if(INFERENCE_HELPER_ENABLE_TFLITE OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_EDGETPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_NNAPI)
+if(INFERENCE_HELPER_ENABLE_TFLITE OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_EDGETPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_NNAPI)
     set(SRC ${SRC} inference_helper_tensorflow_lite.h inference_helper_tensorflow_lite.cpp)
 endif()
 
@@ -97,7 +98,7 @@ if(INFERENCE_HELPER_ENABLE_OPENCV)
 endif()
 
 # For Tensorflow Lite
-if(INFERENCE_HELPER_ENABLE_TFLITE OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_EDGETPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_NNAPI)
+if(INFERENCE_HELPER_ENABLE_TFLITE OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_EDGETPU OR INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_NNAPI)
     include(${THIRD_PARTY_DIR}/cmakes/tflite.cmake)
     target_include_directories(${LibraryName} PUBLIC ${TFLITE_INC})
     target_link_libraries(${LibraryName} PRIVATE ${TFLITE_LIB})
@@ -120,6 +121,34 @@ if(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU)
     target_include_directories(${LibraryName} PUBLIC ${TFLITE_GPU_INC})
     target_link_libraries(${LibraryName} PRIVATE ${TFLITE_GPU_LIB} EGL GLESv2)
     add_definitions(-DINFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU)
+endif()
+
+# For Tensorflow Lite Delegate(QNN)
+if(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN)
+    set(QNN_SDK "${THIRD_PARTY_DIR}/../../ViewAndroid/qairt/2.31.0.250130" CACHE PATH "Path to QNN SDK" FORCE)
+
+    # Add preprocessor definition for QNN
+    add_definitions(-DINFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN)
+
+    # Add QNN include directory
+    target_include_directories(${LibraryName} PUBLIC ${QNN_SDK}/include)
+
+    message(STATUS "Added QNN include directory: ${QNN_SDK}/include")
+
+    # Link required QNN libraries
+    target_link_libraries(${LibraryName} PRIVATE
+            ${QNN_SDK}/lib/aarch64-android/libQnnTFLiteDelegate.so
+            ${QNN_SDK}/lib/aarch64-android/libQnnGpu.so
+
+            ${QNN_SDK}/lib/aarch64-android/libQnnDspV66Stub.so
+            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV68Stub.so
+            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV69Stub.so
+            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV73Stub.so
+            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV75Stub.so
+
+            ${QNN_SDK}/lib/aarch64-android/libQnnHtp.so
+            ${QNN_SDK}/lib/aarch64-android/libQnnHtpPrepare.so
+    )
 endif()
 
 # For Tensorflow Lite Delegate(Edge TPU)
