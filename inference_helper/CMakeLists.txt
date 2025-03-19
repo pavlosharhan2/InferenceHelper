@@ -139,13 +139,6 @@ if(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN)
     target_link_libraries(${LibraryName} PRIVATE
             ${QNN_SDK}/lib/aarch64-android/libQnnTFLiteDelegate.so
             ${QNN_SDK}/lib/aarch64-android/libQnnGpu.so
-
-            ${QNN_SDK}/lib/aarch64-android/libQnnDspV66Stub.so
-            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV68Stub.so
-            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV69Stub.so
-            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV73Stub.so
-            ${QNN_SDK}/lib/aarch64-android/libQnnHtpV75Stub.so
-
             ${QNN_SDK}/lib/aarch64-android/libQnnHtp.so
             ${QNN_SDK}/lib/aarch64-android/libQnnHtpPrepare.so
     )

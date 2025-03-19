@@ -88,12 +88,6 @@ InferenceHelper* InferenceHelper::Create(const InferenceHelper::HelperType helpe
         p = new InferenceHelperTensorflowLite();
         break;
 #endif
-#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
-    case kTensorflowLiteXnnpack:
-        PRINT("Use TensorflowLite XNNPACK Delegate\n");
-        p = new InferenceHelperTensorflowLite();
-        break;
-#endif
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN
     case kTensorflowLiteQnn:
         PRINT("Use TensorflowLite QNN Delegate\n");
@@ -103,6 +97,12 @@ InferenceHelper* InferenceHelper::Create(const InferenceHelper::HelperType helpe
 #ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_GPU
     case kTensorflowLiteGpu:
         PRINT("Use TensorflowLite GPU Delegate\n");
+        p = new InferenceHelperTensorflowLite();
+        break;
+#endif
+#ifdef INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_XNNPACK
+    case kTensorflowLiteXnnpack:
+        PRINT("Use TensorflowLite XNNPACK Delegate\n");
         p = new InferenceHelperTensorflowLite();
         break;
 #endif
@@ -204,7 +204,11 @@ InferenceHelper* InferenceHelper::Create(const InferenceHelper::HelperType helpe
         break;
 #endif
     default:
-        PRINT_E("Unsupported inference helper type (%d)\n", helper_type);
+        if (helper_type == kTensorflowLiteQnn || helper_type == kTensorflowLiteQnn || helper_type == kTensorflowLiteXnnpack){
+            p = new InferenceHelperTensorflowLite();
+        } else {
+            PRINT_E("Unsupported inference helper type (%d)\n", helper_type);
+        }
         break;
     }
     if (p == nullptr) {
