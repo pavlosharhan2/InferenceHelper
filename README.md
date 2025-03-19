@@ -2,6 +2,7 @@
   <img src="00_doc/logo.png" />
 </p>
 
+
 # Inference Helper
 - This is a wrapper of deep learning frameworks especially for inference
 - This class provides a common interface to use various deep learnig frameworks, so that you can use the same application code
