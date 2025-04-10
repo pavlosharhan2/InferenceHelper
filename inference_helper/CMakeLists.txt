@@ -125,7 +125,7 @@ endif()
 
 # For Tensorflow Lite Delegate(QNN)
 if(INFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN)
-    set(QNN_SDK "${THIRD_PARTY_DIR}/../../ViewAndroid/qairt/2.31.0.250130" CACHE PATH "Path to QNN SDK" FORCE)
+    set(QNN_SDK "${THIRD_PARTY_DIR}/qairt/2.31.0.250130" CACHE PATH "Path to QNN SDK" FORCE)
 
     # Add preprocessor definition for QNN
     add_definitions(-DINFERENCE_HELPER_ENABLE_TFLITE_DELEGATE_QNN)
