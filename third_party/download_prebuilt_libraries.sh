@@ -94,6 +94,7 @@ move_dir_to_shell_file
 
 # Download some prerequisites
 download_and_extract "https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v2.31.0.250130.zip"
+mv qairt ../../../MyhawkSimple
 download_and_extract "https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-android-sdk.zip"
 mv OpenCV-android-sdk ../../../MyhawkSimple
 # Custom build gradle so OpenCV can be used in both Java and C++
